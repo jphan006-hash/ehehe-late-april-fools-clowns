@@ -56,7 +56,8 @@ if(dist < 25){
 
 
 // If health reaches 0 → game over sequence
-if(health <= 0){ // HEALTH BAR
+if(health <= 0){  health = maxHealth;
+  } // HEALTH BAR
 ctx.fillStyle = "white";
 ctx.font = "16px monospace";
 ctx.fillText("Health", 20, 50);
