@@ -56,7 +56,18 @@ if(dist < 25){
 
 
 // If health reaches 0 → game over sequence
-if(health <= 0){
+if(health <= 0){ // HEALTH BAR
+ctx.fillStyle = "white";
+ctx.font = "16px monospace";
+ctx.fillText("Health", 20, 50);
+
+// background bar
+ctx.fillStyle = "gray";
+ctx.fillRect(20, 60, 200, 20);
+
+// health amount
+ctx.fillStyle = "lime";
+ctx.fillRect(20, 60, (health / maxHealth) * 200, 20);
   gameState = "caught";
   stopMusic();
 }
