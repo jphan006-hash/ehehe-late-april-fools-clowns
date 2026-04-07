@@ -8,88 +8,103 @@
     </style>
 </head>
 <body>
-    <div style="position: absolute; padding: 10px;">Score: <span id="scoreVal">0</span></div>
+    <div style="position: absolute; padding: 10px; pointer-events: none;">
+        Score: <span id="scoreVal">0</span> | Controls: Arrow Keys
+    </div>
     <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-<script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+        // --- GENDER MODELS ---
+        // Change type to 'female' for different model
+        let player = { x: 100, y: 100, size: 20, speed: 5, type: 'male' }; 
+        let enemy = { x: 400, y: 300, size: 25, speed: 2 };
+        let snack = { x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: 10 };
+        
+        let keys = {};
+        let score = 0;
 
-    let player = { x: 100, y: 100, size: 20, speed: 4 };
-    let enemy = { x: 400, y: 300, size: 25, speed: 2 };
-    let snack = { x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: 10 };
-    let keys = {};
-    let score = 0;
+        document.addEventListener("keydown", e => keys[e.key] = true);
+        document.addEventListener("keyup", e => keys[e.key] = false);
 
-    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+        // --- DRAW FUNCTIONS ---
+        function drawPlayer() {
+            ctx.save();
+            // --- HIGHLIGHTING EFFECT ---
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "white";
 
-    // Random jumpscare
-    setInterval(() => {
-        if (Math.random() < 0.3) {
-            alert("🤡 BOO! The clown slipped on a banana!");
-            keys = {}; // Clear keys to prevent getting stuck moving
-        }
-    }, 10000);
-
-    function update() {
-        if (keys["w"]) player.y -= player.speed;
-        if (keys["s"]) player.y += player.speed;
-        if (keys["a"]) player.x -= player.speed;
-        if (keys["d"]) player.x += player.speed;
-
-        // Enemy follows player
-        let dx = player.x - enemy.x;
-        let dy = player.y - enemy.y;
-        let dist = Math.sqrt(dx*dx + dy*dy);
-        if(dist > 0) {
-            enemy.x += (dx / dist) * enemy.speed;
-            enemy.y += (dy / dist) * enemy.speed;
-        }
-
-        // Collision with snack
-        if (Math.abs(player.x - snack.x) < 20 && Math.abs(player.y - snack.y) < 20) {
-            score++;
-            document.getElementById("scoreVal").innerText = score;
-            snack.x = Math.random() * (canvas.width - 20);
-            snack.y = Math.random() * (canvas.height - 20);
+            if (player.type === 'male') {
+                // Male Model (Square with tie)
+                ctx.fillStyle = "#3498db";
+                ctx.fillRect(player.x, player.y, player.size, player.size);
+                ctx.fillStyle = "black";
+                ctx.fillRect(player.x + 8, player.y + 5, 4, 15);
+            } else {
+                // Female Model (Triangle/Dress)
+                ctx.fillStyle = "#e74c3c";
+                ctx.beginPath();
+                ctx.moveTo(player.x + player.size/2, player.y);
+                ctx.lineTo(player.x + player.size, player.y + player.size);
+                ctx.lineTo(player.x, player.y + player.size);
+                ctx.fill();
+            }
+            ctx.restore();
         }
 
-        // Lose condition
-        if (Math.abs(player.x - enemy.x) < 20 && Math.abs(player.y - enemy.y) < 20) {
-            alert("💀 The clown caught you... but he just wanted a hug!");
-            score = 0;
-            document.getElementById("scoreVal").innerText = score;
-            player.x = 100; player.y = 100;
-            enemy.x = 400; enemy.y = 300;
+        function drawEnemy() {
+            ctx.fillStyle = "#2ecc71";
+            ctx.beginPath();
+            ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
+            ctx.fill();
         }
-    }
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        function drawSnack() {
+            ctx.fillStyle = "#f1c40f";
+            ctx.fillRect(snack.x, snack.y, snack.size, snack.size);
+        }
 
-        // Draw Player (Blue)
-        ctx.fillStyle = "cyan";
-        ctx.fillRect(player.x, player.y, player.size, player.size);
+        function update() {
+            // --- ARROW KEY MOVEMENT ---
+            if (keys["ArrowUp"]) player.y -= player.speed;
+            if (keys["ArrowDown"]) player.y += player.speed;
+            if (keys["ArrowLeft"]) player.x -= player.speed;
+            if (keys["ArrowRight"]) player.x += player.speed;
 
-        // Draw Enemy (Red Clown)
-        ctx.fillStyle = "red";
-        ctx.beginPath();
-        ctx.arc(enemy.x + 12, enemy.y + 12, enemy.size/2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillText("🤡", enemy.x, enemy.y + 15);
+            // Screen boundaries
+            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
 
-        // Draw Snack (Yellow)
-        ctx.fillStyle = "yellow";
-        ctx.fillRect(snack.x, snack.y, snack.size, snack.size);
+            // Enemy follows player
+            let dx = player.x - enemy.x;
+            let dy = player.y - enemy.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if(dist > 0) {
+                enemy.x += (dx / dist) * enemy.speed;
+                enemy.y += (dy / dist) * enemy.speed;
+            }
+
+            // Collision with snack
+            if (Math.abs(player.x - snack.x) < 20 && Math.abs(player.y - snack.y) < 20) {
+                score++;
+                document.getElementById("scoreVal").innerText = score;
+                snack.x = Math.random() * (canvas.width - 20);
+                snack.y = Math.random() * (canvas.height - 20);
+            }
+
+            // Draw everything
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawEnemy();
+            drawSnack();
+
+            requestAnimationFrame(update);
+        }
 
         update();
-        requestAnimationFrame(draw); // This keeps the game running
-    }
-
-    draw(); // Start the game
-</script>
+    </script>
 </body>
 </html>
