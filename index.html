@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Goofy Horror Park 3D-ish</title>
+  <title>Goofy Horror Park - Hide & Seek</title>
   <style>
     body { margin:0; overflow:hidden; background:black; }
     canvas { display:block; }
@@ -19,221 +19,242 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 // Player
-let player = { x:300, y:300, size:20, speed:4 };
+let player = { x:300, y:300, size:12, speed:4, inCart:false, cartIndex:null };
 
-// Clown enemy
+// Enemy
 let enemy = { x:600, y:300, speed:2 };
 
 // Carts
 let carts = [];
-for (let i = 0; i < 8; i++) {
+for (let i = 0; i < 6; i++) {
   carts.push({
-    angle: i * (Math.PI * 2 / 8),
-    radius: 150 + Math.random()*150,
-    speed: 0.01 + Math.random()*0.02
+    angle: i * (Math.PI*2/6),
+    radius: 180,
+    speed: 0.01 + Math.random()*0.01,
+    doorOpen: true
   });
 }
 
-// Sound (browser safe)
+// Sound
 let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let oscillator, gainNode;
+let osc, gain;
 let playing = false;
 
-function startMusic() {
+function startMusic(){
   if (playing) return;
-
-  oscillator = audioCtx.createOscillator();
-  gainNode = audioCtx.createGain();
-
-  oscillator.type = "square";
-  oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
-
-  gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
-
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-
-  oscillator.start();
-  playing = true;
+  osc = audioCtx.createOscillator();
+  gain = audioCtx.createGain();
+  osc.type="square";
+  osc.frequency.value=140;
+  gain.gain.value=0.05;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  playing=true;
 }
-
-function stopMusic() {
-  if (oscillator) oscillator.stop();
-  playing = false;
+function stopMusic(){
+  if (osc) osc.stop();
+  playing=false;
 }
 
 // Controls
 let keys = {};
-document.addEventListener("keydown", e => {
+document.addEventListener("keydown", e=>{
   keys[e.key.toLowerCase()] = true;
-
-  // unlock audio (needed for browser)
   audioCtx.resume();
 
-  if (gameState === "gameover" && e.key.toLowerCase() === "r") restart();
+  if(e.key==="e") interactCart();
+  if(e.key==="q") toggleDoor();
+
+  if(gameState==="gameover" && e.key==="r") restart();
 });
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+document.addEventListener("keyup", e=>keys[e.key.toLowerCase()] = false);
 
 // Game state
-let gameState = "play";
-let redFade = 0;
-let pull = 0;
+let gameState="play";
+let redFade=0;
+let pull=0;
 
 // Restart
-function restart() {
-  gameState = "play";
-  redFade = 0;
-  pull = 0;
-  player.x = 300;
-  player.y = 300;
+function restart(){
+  gameState="play";
+  player.inCart=false;
+  player.cartIndex=null;
+  player.x=300;
+  player.y=300;
+  redFade=0;
+}
+
+// Find nearest cart
+function nearestCart(){
+  let closest = null;
+  let bestDist = 50;
+
+  carts.forEach((c,i)=>{
+    let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
+    let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
+
+    let dx = player.x - cx;
+    let dy = player.y - cy;
+    let d = Math.sqrt(dx*dx+dy*dy);
+
+    if(d < bestDist){
+      bestDist = d;
+      closest = i;
+    }
+  });
+
+  return closest;
+}
+
+// Enter / exit cart
+function interactCart(){
+  let i = nearestCart();
+
+  if(player.inCart){
+    player.inCart = false;
+    player.cartIndex = null;
+  } else if(i !== null){
+    player.inCart = true;
+    player.cartIndex = i;
+  }
+}
+
+// Toggle door
+function toggleDoor(){
+  if(player.inCart){
+    let cart = carts[player.cartIndex];
+    cart.doorOpen = !cart.doorOpen;
+  }
 }
 
 // Update
-function update() {
-  if (gameState !== "play") return;
+function update(){
+  if(gameState!=="play") return;
 
-  // Move player
-  if (keys["w"]) player.y -= player.speed;
-  if (keys["s"]) player.y += player.speed;
-  if (keys["a"]) player.x -= player.speed;
-  if (keys["d"]) player.x += player.speed;
+  // Move carts
+  carts.forEach(c=>c.angle += c.speed);
 
-  // Enemy follow
+  // Player movement (only if not hiding)
+  if(!player.inCart){
+    if(keys["w"]) player.y -= player.speed;
+    if(keys["s"]) player.y += player.speed;
+    if(keys["a"]) player.x -= player.speed;
+    if(keys["d"]) player.x += player.speed;
+  } else {
+    // follow cart if inside
+    let c = carts[player.cartIndex];
+    player.x = canvas.width/2 + Math.cos(c.angle)*c.radius;
+    player.y = canvas.height/2 + Math.sin(c.angle)*c.radius;
+  }
+
+  // Enemy AI
   let dx = player.x - enemy.x;
   let dy = player.y - enemy.y;
   let dist = Math.sqrt(dx*dx + dy*dy);
 
-  enemy.x += (dx/dist) * enemy.speed;
-  enemy.y += (dy/dist) * enemy.speed;
-
-  // 🎵 Distance music
-  if (dist < 200) startMusic();
-  else stopMusic();
-
-  // Allow passing unless VERY close
-  if (dist < 10) {
-    gameState = "caught";
-    stopMusic();
+  // If player hidden AND door closed → enemy ignores
+  if(player.inCart){
+    let c = carts[player.cartIndex];
+    if(!c.doorOpen){
+      stopMusic();
+      return;
+    }
   }
 
-  // Move carts
-  carts.forEach(c => c.angle += c.speed);
+  // Chase
+  enemy.x += (dx/dist)*enemy.speed;
+  enemy.y += (dy/dist)*enemy.speed;
+
+  // Music
+  if(dist < 200) startMusic();
+  else stopMusic();
+
+  // Catch
+  if(dist < 10){
+    gameState="caught";
+    stopMusic();
+  }
 }
 
 // Draw
-function draw() {
+function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 🎪 Circus stripes
-  for (let i = 0; i < canvas.width; i += 80) {
-    ctx.fillStyle = i % 160 === 0 ? "#800" : "#111";
-    ctx.fillRect(i, 0, 40, canvas.height);
-  }
-
-  // 🎢 Tracks
-  ctx.strokeStyle = "purple";
-  for (let r = 100; r < 400; r += 60) {
+  // Tracks
+  ctx.strokeStyle="purple";
+  for(let r=120;r<400;r+=60){
     ctx.beginPath();
-    ctx.arc(canvas.width/2, canvas.height/2, r, 0, Math.PI*2);
+    ctx.arc(canvas.width/2,canvas.height/2,r,0,Math.PI*2);
     ctx.stroke();
   }
 
-  if (gameState === "play") {
+  // Carts
+  carts.forEach((c,i)=>{
+    let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
+    let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
 
-    // 🎢 Draw carts (fake 3D scaling)
-    carts.forEach(c => {
-      let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
-      let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
+    ctx.fillStyle="orange";
+    ctx.fillRect(cx-15,cy-15,30,30);
 
-      let scale = (cy / canvas.height); // fake depth
-      let size = 20 + scale * 20;
+    // Door
+    ctx.fillStyle = c.doorOpen ? "green" : "red";
+    ctx.fillRect(cx-5,cy-20,10,5);
+  });
 
-      ctx.fillStyle = "orange";
-      ctx.fillRect(cx - size/2, cy - size/2, size, size);
-    });
+  // Enemy
+  ctx.fillStyle="white";
+  ctx.beginPath();
+  ctx.arc(enemy.x,enemy.y,15,0,Math.PI*2);
+  ctx.fill();
 
-    // 🤡 Clown
-    ctx.fillStyle = "white";
+  ctx.fillStyle="red";
+  ctx.fillRect(enemy.x-5,enemy.y-5,10,10);
+
+  // Player (only draw if not hidden or door open)
+  if(!player.inCart || carts[player.cartIndex].doorOpen){
+    ctx.fillStyle="lime";
     ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, 15, 0, Math.PI*2);
+    ctx.arc(player.x,player.y,10,0,Math.PI*2);
     ctx.fill();
-
-    ctx.fillStyle = "red";
-    ctx.fillRect(enemy.x - 5, enemy.y - 5, 10, 10);
-
-    // 🧍 Player (VERY visible now)
-    ctx.fillStyle = "lime";
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, 12, 0, Math.PI*2);
-    ctx.fill();
-
-    // Flashlight
-    ctx.fillStyle = "rgba(0,0,0,0.8)";
-    ctx.beginPath();
-    ctx.rect(0,0,canvas.width,canvas.height);
-    ctx.arc(player.x, player.y, 140, 0, Math.PI*2, true);
-    ctx.fill("evenodd");
   }
 
   // CAUGHT
-  if (gameState === "caught") {
-    pull += 0.02;
+  if(gameState==="caught"){
+    pull+=0.02;
+    player.x += (enemy.x-player.x)*0.1;
+    player.y += (enemy.y-player.y)*0.1;
 
-    player.x += (enemy.x - player.x)*0.1;
-    player.y += (enemy.y - player.y)*0.1;
-
-    ctx.fillStyle = "black";
+    ctx.fillStyle="rgba(255,0,0,"+redFade+")";
     ctx.fillRect(0,0,canvas.width,canvas.height);
+    redFade+=0.01;
 
-    // Rope
-    ctx.strokeStyle = "white";
-    ctx.beginPath();
-    ctx.moveTo(enemy.x, enemy.y);
-    ctx.lineTo(player.x, player.y);
-    ctx.stroke();
-
-    // Characters
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, 15, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.fillStyle = "lime";
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, 12, 0, Math.PI*2);
-    ctx.fill();
-
-    // Red fade
-    redFade += 0.01;
-    ctx.fillStyle = "rgba(255,0,0,"+redFade+")";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    if (pull > 1.5) gameState = "gameover";
+    if(pull>1.5) gameState="gameover";
   }
 
   // GAME OVER
-  if (gameState === "gameover") {
-    ctx.fillStyle = "red";
+  if(gameState==="gameover"){
+    ctx.fillStyle="red";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    ctx.fillStyle = "white";
-    ctx.font = "bold 60px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+    ctx.fillStyle="white";
+    ctx.font="bold 60px monospace";
+    ctx.textAlign="center";
+    ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);
 
-    ctx.font = "20px monospace";
-    ctx.fillText("Press R to Restart", canvas.width/2, canvas.height/2 + 100);
+    ctx.font="20px monospace";
+    ctx.fillText("Press R to Restart",canvas.width/2,canvas.height/2+100);
   }
 }
 
 // Loop
-function loop() {
+function loop(){
   update();
   draw();
   requestAnimationFrame(loop);
 }
-
 loop();
+
 </script>
 
 </body>
