@@ -32,11 +32,33 @@ let dx = player.x - enemy.x;
 let dy = player.y - enemy.y;
 let dist = Math.sqrt(dx*dx + dy*dy);
 
-// 🎵 trigger music when close
-if (dist < 200) {
-  playDangerMusic();
-} else {
-  stopDangerMusic();
+// Damage instead of instant death
+if(dist < 25){
+  if(damageCooldown <= 0){
+    health--;
+    damageCooldown = 30; // delay between hits
+  }
+}
+
+// cooldown timer
+if(damageCooldown > 0){
+  damageCooldown--;
+}
+
+// Damage instead of instant death
+if(dist < 25){
+  if(damageCooldown <= 0){
+    health--;
+    damageCooldown = 30; // delay between hits
+  }
+}
+
+
+
+// If health reaches 0 → game over sequence
+if(health <= 0){
+  gameState = "caught";
+  stopMusic();
 }
 
 
