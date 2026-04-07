@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Goofy Horror Park</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: black; color: white; font-family: Arial; }
+        canvas { display: block; background: #111; }
+    </style>
+</head>
+<body>
+    <div style="position: absolute; padding: 10px;">Score: <span id="scoreVal">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let player = { x: 100, y: 100, size: 20, speed: 4 };
+    let enemy = { x: 400, y: 300, size: 25, speed: 2 };
+    let snack = { x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: 10 };
+    let keys = {};
+    let score = 0;
+
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+    // Random jumpscare
+    setInterval(() => {
+        if (Math.random() < 0.3) {
+            alert("🤡 BOO! The clown slipped on a banana!");
+            keys = {}; // Clear keys to prevent getting stuck moving
+        }
+    }, 10000);
+
+    function update() {
+        if (keys["w"]) player.y -= player.speed;
+        if (keys["s"]) player.y += player.speed;
+        if (keys["a"]) player.x -= player.speed;
+        if (keys["d"]) player.x += player.speed;
+
+        // Enemy follows player
+        let dx = player.x - enemy.x;
+        let dy = player.y - enemy.y;
+        let dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist > 0) {
+            enemy.x += (dx / dist) * enemy.speed;
+            enemy.y += (dy / dist) * enemy.speed;
+        }
+
+        // Collision with snack
+        if (Math.abs(player.x - snack.x) < 20 && Math.abs(player.y - snack.y) < 20) {
+            score++;
+            document.getElementById("scoreVal").innerText = score;
+            snack.x = Math.random() * (canvas.width - 20);
+            snack.y = Math.random() * (canvas.height - 20);
+        }
+
+        // Lose condition
+        if (Math.abs(player.x - enemy.x) < 20 && Math.abs(player.y - enemy.y) < 20) {
+            alert("💀 The clown caught you... but he just wanted a hug!");
+            score = 0;
+            document.getElementById("scoreVal").innerText = score;
+            player.x = 100; player.y = 100;
+            enemy.x = 400; enemy.y = 300;
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Player (Blue)
+        ctx.fillStyle = "cyan";
+        ctx.fillRect(player.x, player.y, player.size, player.size);
+
+        // Draw Enemy (Red Clown)
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(enemy.x + 12, enemy.y + 12, enemy.size/2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillText("🤡", enemy.x, enemy.y + 15);
+
+        // Draw Snack (Yellow)
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(snack.x, snack.y, snack.size, snack.size);
+
+        update();
+        requestAnimationFrame(draw); // This keeps the game running
+    }
+
+    draw(); // Start the game
+</script>
+</body>
+</html>
