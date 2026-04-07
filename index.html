@@ -119,14 +119,14 @@ function interactCart(){
     player.cartIndex = i;
   }
 }
-
-// Toggle door
-function toggleDoor(){
-  if(player.inCart){
-    let cart = carts[player.cartIndex];
-    cart.doorOpen = !cart.doorOpen;
+if(player.inCart){
+  let c = carts[player.cartIndex];
+  if(!c.doorOpen){
+    stopMusic();
+    return; // SAFE = no damage
   }
 }
+
 
 // Update
 function update(){
