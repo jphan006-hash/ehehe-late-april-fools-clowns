@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Goofy Horror Park - Coaster Chaos</title>
+  <title>Goofy Horror Park 3D-ish</title>
   <style>
     body { margin:0; overflow:hidden; background:black; }
     canvas { display:block; }
@@ -19,46 +19,71 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 // Player
-let player = { x:300, y:300, size:15, speed:4 };
+let player = { x:300, y:300, size:20, speed:4 };
 
-// Enemy
+// Clown enemy
 let enemy = { x:600, y:300, speed:2 };
 
-// Moving coaster carts
+// Carts
 let carts = [];
-for (let i = 0; i < 6; i++) {
+for (let i = 0; i < 8; i++) {
   carts.push({
-    angle: i * (Math.PI * 2 / 6),
-    radius: 150 + Math.random()*100,
+    angle: i * (Math.PI * 2 / 8),
+    radius: 150 + Math.random()*150,
     speed: 0.01 + Math.random()*0.02
   });
 }
 
-// Snack
-let snack = { x:100, y:100 };
+// Sound (browser safe)
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let oscillator, gainNode;
+let playing = false;
 
-let keys = {};
-let score = 0;
+function startMusic() {
+  if (playing) return;
 
-let gameState = "play";
-let redFade = 0;
-let pullProgress = 0;
+  oscillator = audioCtx.createOscillator();
+  gainNode = audioCtx.createGain();
+
+  oscillator.type = "square";
+  oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+
+  gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  oscillator.start();
+  playing = true;
+}
+
+function stopMusic() {
+  if (oscillator) oscillator.stop();
+  playing = false;
+}
 
 // Controls
+let keys = {};
 document.addEventListener("keydown", e => {
   keys[e.key.toLowerCase()] = true;
 
-  if (gameState === "gameover" && e.key.toLowerCase() === "r") {
-    restart();
-  }
+  // unlock audio (needed for browser)
+  audioCtx.resume();
+
+  if (gameState === "gameover" && e.key.toLowerCase() === "r") restart();
 });
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
+// Game state
+let gameState = "play";
+let redFade = 0;
+let pull = 0;
+
+// Restart
 function restart() {
   gameState = "play";
   redFade = 0;
-  pullProgress = 0;
-  score = 0;
+  pull = 0;
   player.x = 300;
   player.y = 300;
 }
@@ -67,13 +92,13 @@ function restart() {
 function update() {
   if (gameState !== "play") return;
 
-  // Player movement
+  // Move player
   if (keys["w"]) player.y -= player.speed;
   if (keys["s"]) player.y += player.speed;
   if (keys["a"]) player.x -= player.speed;
   if (keys["d"]) player.x += player.speed;
 
-  // Enemy follows
+  // Enemy follow
   let dx = player.x - enemy.x;
   let dy = player.y - enemy.y;
   let dist = Math.sqrt(dx*dx + dy*dy);
@@ -81,42 +106,31 @@ function update() {
   enemy.x += (dx/dist) * enemy.speed;
   enemy.y += (dy/dist) * enemy.speed;
 
-  // Move carts
-  carts.forEach(c => {
-    c.angle += c.speed;
-  });
+  // 🎵 Distance music
+  if (dist < 200) startMusic();
+  else stopMusic();
 
-  // Cart collision
-  carts.forEach(c => {
-    let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
-    let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
-
-    if (Math.abs(player.x - cx) < 20 &&
-        Math.abs(player.y - cy) < 20) {
-      gameState = "caught";
-    }
-  });
-
-  // Enemy collision
-  if (Math.abs(player.x - enemy.x) < 20 &&
-      Math.abs(player.y - enemy.y) < 20) {
+  // Allow passing unless VERY close
+  if (dist < 10) {
     gameState = "caught";
+    stopMusic();
   }
 
-  // Snack
-  if (Math.abs(player.x - snack.x) < 15 &&
-      Math.abs(player.y - snack.y) < 15) {
-    score++;
-    snack.x = Math.random()*canvas.width;
-    snack.y = Math.random()*canvas.height;
-  }
+  // Move carts
+  carts.forEach(c => c.angle += c.speed);
 }
 
 // Draw
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 🎢 BACKGROUND: CIRCUS TRACKS
+  // 🎪 Circus stripes
+  for (let i = 0; i < canvas.width; i += 80) {
+    ctx.fillStyle = i % 160 === 0 ? "#800" : "#111";
+    ctx.fillRect(i, 0, 40, canvas.height);
+  }
+
+  // 🎢 Tracks
   ctx.strokeStyle = "purple";
   for (let r = 100; r < 400; r += 60) {
     ctx.beginPath();
@@ -124,53 +138,49 @@ function draw() {
     ctx.stroke();
   }
 
-  // 🎪 Circus stripes
-  for (let i = 0; i < canvas.width; i += 80) {
-    ctx.fillStyle = i % 160 === 0 ? "darkred" : "black";
-    ctx.fillRect(i, 0, 40, canvas.height);
-  }
-
   if (gameState === "play") {
 
-    // Snack
-    ctx.fillStyle = "yellow";
-    ctx.fillRect(snack.x, snack.y, 10, 10);
-
-    // Draw carts
+    // 🎢 Draw carts (fake 3D scaling)
     carts.forEach(c => {
       let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
       let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
 
+      let scale = (cy / canvas.height); // fake depth
+      let size = 20 + scale * 20;
+
       ctx.fillStyle = "orange";
-      ctx.fillRect(cx-10, cy-10, 20, 20);
+      ctx.fillRect(cx - size/2, cy - size/2, size, size);
     });
 
-    // Enemy
-    ctx.fillStyle = "red";
-    ctx.fillRect(enemy.x, enemy.y, 20, 20);
+    // 🤡 Clown
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, 15, 0, Math.PI*2);
+    ctx.fill();
 
-    // Player
+    ctx.fillStyle = "red";
+    ctx.fillRect(enemy.x - 5, enemy.y - 5, 10, 10);
+
+    // 🧍 Player (VERY visible now)
     ctx.fillStyle = "lime";
-    ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, 12, 0, Math.PI*2);
+    ctx.fill();
 
     // Flashlight
-    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillStyle = "rgba(0,0,0,0.8)";
     ctx.beginPath();
     ctx.rect(0,0,canvas.width,canvas.height);
-    ctx.arc(player.x, player.y, 130, 0, Math.PI*2, true);
+    ctx.arc(player.x, player.y, 140, 0, Math.PI*2, true);
     ctx.fill("evenodd");
-
-    ctx.fillStyle = "white";
-    ctx.font = "16px monospace";
-    ctx.fillText("Snacks: " + score, 20, 30);
   }
 
   // CAUGHT
   if (gameState === "caught") {
-    pullProgress += 0.02;
+    pull += 0.02;
 
-    player.x += (enemy.x - player.x) * 0.1;
-    player.y += (enemy.y - player.y) * 0.1;
+    player.x += (enemy.x - player.x)*0.1;
+    player.y += (enemy.y - player.y)*0.1;
 
     ctx.fillStyle = "black";
     ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -182,24 +192,23 @@ function draw() {
     ctx.lineTo(player.x, player.y);
     ctx.stroke();
 
-    // Enemy
-    ctx.fillStyle = "black";
-    ctx.fillRect(enemy.x-15, enemy.y-15, 30, 30);
+    // Characters
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, 15, 0, Math.PI*2);
+    ctx.fill();
 
-    ctx.fillStyle = "red";
-    ctx.fillRect(enemy.x-8, enemy.y-5, 5, 5);
-    ctx.fillRect(enemy.x+3, enemy.y-5, 5, 5);
-
-    // Player
     ctx.fillStyle = "lime";
-    ctx.fillRect(player.x, player.y, player.size, player.size);
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, 12, 0, Math.PI*2);
+    ctx.fill();
 
     // Red fade
     redFade += 0.01;
-    ctx.fillStyle = "rgba(255,0,0," + redFade + ")";
+    ctx.fillStyle = "rgba(255,0,0,"+redFade+")";
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    if (pullProgress > 1.5) gameState = "gameover";
+    if (pull > 1.5) gameState = "gameover";
   }
 
   // GAME OVER
