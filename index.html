@@ -1,110 +1,231 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Goofy Horror Park</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: black; color: white; font-family: Arial; }
-        canvas { display: block; background: #111; }
-    </style>
+  <title>Goofy Horror Park - Coaster Chaos</title>
+  <style>
+    body { margin:0; overflow:hidden; background:black; }
+    canvas { display:block; }
+  </style>
 </head>
 <body>
-    <div style="position: absolute; padding: 10px; pointer-events: none;">
-        Score: <span id="scoreVal">0</span> | Controls: Arrow Keys
-    </div>
-    <canvas id="gameCanvas"></canvas>
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
 
-        // --- GENDER MODELS ---
-        // Change type to 'female' for different model
-        let player = { x: 100, y: 100, size: 20, speed: 5, type: 'male' }; 
-        let enemy = { x: 400, y: 300, size: 25, speed: 2 };
-        let snack = { x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: 10 };
-        
-        let keys = {};
-        let score = 0;
+<canvas id="gameCanvas"></canvas>
 
-        document.addEventListener("keydown", e => keys[e.key] = true);
-        document.addEventListener("keyup", e => keys[e.key] = false);
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-        // --- DRAW FUNCTIONS ---
-        function drawPlayer() {
-            ctx.save();
-            // --- HIGHLIGHTING EFFECT ---
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = "white";
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-            if (player.type === 'male') {
-                // Male Model (Square with tie)
-                ctx.fillStyle = "#3498db";
-                ctx.fillRect(player.x, player.y, player.size, player.size);
-                ctx.fillStyle = "black";
-                ctx.fillRect(player.x + 8, player.y + 5, 4, 15);
-            } else {
-                // Female Model (Triangle/Dress)
-                ctx.fillStyle = "#e74c3c";
-                ctx.beginPath();
-                ctx.moveTo(player.x + player.size/2, player.y);
-                ctx.lineTo(player.x + player.size, player.y + player.size);
-                ctx.lineTo(player.x, player.y + player.size);
-                ctx.fill();
-            }
-            ctx.restore();
-        }
+// Player
+let player = { x:300, y:300, size:15, speed:4 };
 
-        function drawEnemy() {
-            ctx.fillStyle = "#2ecc71";
-            ctx.beginPath();
-            ctx.arc(enemy.x, enemy.y, enemy.size, 0, Math.PI * 2);
-            ctx.fill();
-        }
+// Enemy
+let enemy = { x:600, y:300, speed:2 };
 
-        function drawSnack() {
-            ctx.fillStyle = "#f1c40f";
-            ctx.fillRect(snack.x, snack.y, snack.size, snack.size);
-        }
+// Moving coaster carts
+let carts = [];
+for (let i = 0; i < 6; i++) {
+  carts.push({
+    angle: i * (Math.PI * 2 / 6),
+    radius: 150 + Math.random()*100,
+    speed: 0.01 + Math.random()*0.02
+  });
+}
 
-        function update() {
-            // --- ARROW KEY MOVEMENT ---
-            if (keys["ArrowUp"]) player.y -= player.speed;
-            if (keys["ArrowDown"]) player.y += player.speed;
-            if (keys["ArrowLeft"]) player.x -= player.speed;
-            if (keys["ArrowRight"]) player.x += player.speed;
+// Snack
+let snack = { x:100, y:100 };
 
-            // Screen boundaries
-            player.x = Math.max(0, Math.min(canvas.width - player.size, player.x));
-            player.y = Math.max(0, Math.min(canvas.height - player.size, player.y));
+let keys = {};
+let score = 0;
 
-            // Enemy follows player
-            let dx = player.x - enemy.x;
-            let dy = player.y - enemy.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            if(dist > 0) {
-                enemy.x += (dx / dist) * enemy.speed;
-                enemy.y += (dy / dist) * enemy.speed;
-            }
+let gameState = "play";
+let redFade = 0;
+let pullProgress = 0;
 
-            // Collision with snack
-            if (Math.abs(player.x - snack.x) < 20 && Math.abs(player.y - snack.y) < 20) {
-                score++;
-                document.getElementById("scoreVal").innerText = score;
-                snack.x = Math.random() * (canvas.width - 20);
-                snack.y = Math.random() * (canvas.height - 20);
-            }
+// Controls
+document.addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
 
-            // Draw everything
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawPlayer();
-            drawEnemy();
-            drawSnack();
+  if (gameState === "gameover" && e.key.toLowerCase() === "r") {
+    restart();
+  }
+});
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-            requestAnimationFrame(update);
-        }
+function restart() {
+  gameState = "play";
+  redFade = 0;
+  pullProgress = 0;
+  score = 0;
+  player.x = 300;
+  player.y = 300;
+}
 
-        update();
-    </script>
+// Update
+function update() {
+  if (gameState !== "play") return;
+
+  // Player movement
+  if (keys["w"]) player.y -= player.speed;
+  if (keys["s"]) player.y += player.speed;
+  if (keys["a"]) player.x -= player.speed;
+  if (keys["d"]) player.x += player.speed;
+
+  // Enemy follows
+  let dx = player.x - enemy.x;
+  let dy = player.y - enemy.y;
+  let dist = Math.sqrt(dx*dx + dy*dy);
+
+  enemy.x += (dx/dist) * enemy.speed;
+  enemy.y += (dy/dist) * enemy.speed;
+
+  // Move carts
+  carts.forEach(c => {
+    c.angle += c.speed;
+  });
+
+  // Cart collision
+  carts.forEach(c => {
+    let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
+    let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
+
+    if (Math.abs(player.x - cx) < 20 &&
+        Math.abs(player.y - cy) < 20) {
+      gameState = "caught";
+    }
+  });
+
+  // Enemy collision
+  if (Math.abs(player.x - enemy.x) < 20 &&
+      Math.abs(player.y - enemy.y) < 20) {
+    gameState = "caught";
+  }
+
+  // Snack
+  if (Math.abs(player.x - snack.x) < 15 &&
+      Math.abs(player.y - snack.y) < 15) {
+    score++;
+    snack.x = Math.random()*canvas.width;
+    snack.y = Math.random()*canvas.height;
+  }
+}
+
+// Draw
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 🎢 BACKGROUND: CIRCUS TRACKS
+  ctx.strokeStyle = "purple";
+  for (let r = 100; r < 400; r += 60) {
+    ctx.beginPath();
+    ctx.arc(canvas.width/2, canvas.height/2, r, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  // 🎪 Circus stripes
+  for (let i = 0; i < canvas.width; i += 80) {
+    ctx.fillStyle = i % 160 === 0 ? "darkred" : "black";
+    ctx.fillRect(i, 0, 40, canvas.height);
+  }
+
+  if (gameState === "play") {
+
+    // Snack
+    ctx.fillStyle = "yellow";
+    ctx.fillRect(snack.x, snack.y, 10, 10);
+
+    // Draw carts
+    carts.forEach(c => {
+      let cx = canvas.width/2 + Math.cos(c.angle)*c.radius;
+      let cy = canvas.height/2 + Math.sin(c.angle)*c.radius;
+
+      ctx.fillStyle = "orange";
+      ctx.fillRect(cx-10, cy-10, 20, 20);
+    });
+
+    // Enemy
+    ctx.fillStyle = "red";
+    ctx.fillRect(enemy.x, enemy.y, 20, 20);
+
+    // Player
+    ctx.fillStyle = "lime";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    // Flashlight
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.beginPath();
+    ctx.rect(0,0,canvas.width,canvas.height);
+    ctx.arc(player.x, player.y, 130, 0, Math.PI*2, true);
+    ctx.fill("evenodd");
+
+    ctx.fillStyle = "white";
+    ctx.font = "16px monospace";
+    ctx.fillText("Snacks: " + score, 20, 30);
+  }
+
+  // CAUGHT
+  if (gameState === "caught") {
+    pullProgress += 0.02;
+
+    player.x += (enemy.x - player.x) * 0.1;
+    player.y += (enemy.y - player.y) * 0.1;
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // Rope
+    ctx.strokeStyle = "white";
+    ctx.beginPath();
+    ctx.moveTo(enemy.x, enemy.y);
+    ctx.lineTo(player.x, player.y);
+    ctx.stroke();
+
+    // Enemy
+    ctx.fillStyle = "black";
+    ctx.fillRect(enemy.x-15, enemy.y-15, 30, 30);
+
+    ctx.fillStyle = "red";
+    ctx.fillRect(enemy.x-8, enemy.y-5, 5, 5);
+    ctx.fillRect(enemy.x+3, enemy.y-5, 5, 5);
+
+    // Player
+    ctx.fillStyle = "lime";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    // Red fade
+    redFade += 0.01;
+    ctx.fillStyle = "rgba(255,0,0," + redFade + ")";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    if (pullProgress > 1.5) gameState = "gameover";
+  }
+
+  // GAME OVER
+  if (gameState === "gameover") {
+    ctx.fillStyle = "red";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = "white";
+    ctx.font = "bold 60px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
+
+    ctx.font = "20px monospace";
+    ctx.fillText("Press R to Restart", canvas.width/2, canvas.height/2 + 100);
+  }
+}
+
+// Loop
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
 </body>
 </html>
